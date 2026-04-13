@@ -86,7 +86,7 @@ class AUVController(Node):
       /thruster_left
       /thruster_right
       /thruster_vertical
-    """
+    """ 
 
     def __init__(self):
         super().__init__('controller_node')
