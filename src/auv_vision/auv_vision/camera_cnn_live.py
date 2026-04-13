@@ -1,121 +1,138 @@
+#!/usr/bin/env python3
+
 import os
 import json
 import cv2
 import numpy as np
 import tensorflow as tf
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+import sys
+sys.path.append("/home/vision/Desktop/RoboSub_Vision/.venv/lib/python3.9/site-packages")  # Adjust this path as needed
 
-# -----------------------------
-# SETTINGS
-# -----------------------------
-MODEL_PATH = "models/best_model.keras"
-CLASS_NAMES_PATH = "models/class_names.json"
+MODEL_PATH = "home/robosub/Desktop/RoboSub_Vision_2025-2026/.venv/lib/python3.10/site-packages/auv_vision/models/cnn_model.h5" 
+CLASS_NAMES_PATH = "home/robosub/Desktop/RoboSub_Vision_2025-2026/Image_Processing/models/best_models.keras"
 IMG_SIZE = (256, 256)
 CAMERA_INDEX = 0
-LOCK_THRESHOLD = 0.80   # confidence needed to say "LOCKED"
+LOCK_THRESHOLD = 0.80
 
-# Center box size
 BOX_W = 220
 BOX_H = 220
 
-# -----------------------------
-# CHECK FILES
-# -----------------------------
-if not os.path.exists(MODEL_PATH):
-    raise FileNotFoundError(f"Model not found: {MODEL_PATH}")
 
-if not os.path.exists(CLASS_NAMES_PATH):
-    raise FileNotFoundError(f"Class names file not found: {CLASS_NAMES_PATH}")
+class VisionNode(Node):
+    def __init__(self):
+        super().__init__('vision_node')
 
-# -----------------------------
-# LOAD MODEL AND CLASS NAMES
-# -----------------------------
-model = tf.keras.models.load_model(MODEL_PATH)
+        if not os.path.exists(MODEL_PATH):
+            raise FileNotFoundError(f"Model not found: {MODEL_PATH}")
 
-with open(CLASS_NAMES_PATH, "r") as f:
-    class_names = json.load(f)
+        if not os.path.exists(CLASS_NAMES_PATH):
+            raise FileNotFoundError(f"Class names file not found: {CLASS_NAMES_PATH}")
 
-print("Loaded model:", MODEL_PATH)
-print("Loaded classes:", class_names)
+        self.model = tf.keras.models.load_model(MODEL_PATH)
 
-# -----------------------------
-# CAMERA
-# -----------------------------
-cap = cv2.VideoCapture(CAMERA_INDEX)
+        with open(CLASS_NAMES_PATH, "r") as f:
+            self.class_names = json.load(f)
 
-if not cap.isOpened():
-    raise RuntimeError("Could not open camera.")
+        self.get_logger().info(f"Loaded model: {MODEL_PATH}")
+        self.get_logger().info(f"Loaded classes: {self.class_names}")
 
-print("Press 'q' to quit.")
+        self.publisher_ = self.create_publisher(String, 'vision_data', 10)
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("Could not read frame.")
-        break
+        self.cap = cv2.VideoCapture(CAMERA_INDEX)
+        if not self.cap.isOpened():
+            raise RuntimeError("Could not open camera.")
 
-    display = frame.copy()
-    h, w, _ = frame.shape
+        self.timer = self.create_timer(0.1, self.process_frame)
 
-    # Center box coordinates
-    x1 = (w - BOX_W) // 2
-    y1 = (h - BOX_H) // 2
-    x2 = x1 + BOX_W
-    y2 = y1 + BOX_H
+    def process_frame(self):
+        ret, frame = self.cap.read()
+        if not ret:
+            self.get_logger().warning("Could not read frame.")
+            return
 
-    # Crop ROI (region of interest)
-    roi = frame[y1:y2, x1:x2]
+        display = frame.copy()
+        h, w, _ = frame.shape
 
-    # Make sure ROI is valid
-    if roi.size != 0:
-        # Preprocess for CNN
-        roi_resized = cv2.resize(roi, IMG_SIZE)
-        roi_rgb = cv2.cvtColor(roi_resized, cv2.COLOR_BGR2RGB)
-        roi_scaled = roi_rgb.astype("float32") / 255.0
-        roi_input = np.expand_dims(roi_scaled, axis=0)
+        x1 = (w - BOX_W) // 2
+        y1 = (h - BOX_H) // 2
+        x2 = x1 + BOX_W
+        y2 = y1 + BOX_H
 
-        # Predict
-        preds = model.predict(roi_input, verbose=0)[0]
-        pred_idx = int(np.argmax(preds))
-        pred_class = class_names[pred_idx]
-        confidence = float(preds[pred_idx])
+        roi = frame[y1:y2, x1:x2]
 
-        # Decide lock state
-        if confidence >= LOCK_THRESHOLD:
-            color = (0, 255, 0)
-            status = f"LOCKED: {pred_class} ({confidence:.2f})"
-        else:
-            color = (0, 255, 255)
-            status = f"SEARCHING: {pred_class} ({confidence:.2f})"
+        status = "NO_VALID_ROI"
+        pred_class = "none"
+        confidence = 0.0
 
-        # Draw box
-        cv2.rectangle(display, (x1, y1), (x2, y2), color, 2)
+        if roi.size != 0:
+            roi_resized = cv2.resize(roi, IMG_SIZE)
+            roi_rgb = cv2.cvtColor(roi_resized, cv2.COLOR_BGR2RGB)
+            roi_scaled = roi_rgb.astype("float32") / 255.0
+            roi_input = np.expand_dims(roi_scaled, axis=0)
 
-        # Draw label
+            preds = self.model.predict(roi_input, verbose=0)[0]
+            pred_idx = int(np.argmax(preds))
+            pred_class = self.class_names[pred_idx]
+            confidence = float(preds[pred_idx])
+
+            if confidence >= LOCK_THRESHOLD:
+                color = (0, 255, 0)
+                status = "LOCKED"
+            else:
+                color = (0, 255, 255)
+                status = "SEARCHING"
+
+            cv2.rectangle(display, (x1, y1), (x2, y2), color, 2)
+
+            label = f"{status}: {pred_class} ({confidence:.2f})"
+            cv2.putText(
+                display,
+                label,
+                (x1, max(30, y1 - 10)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                color,
+                2
+            )
+
         cv2.putText(
             display,
-            status,
-            (x1, max(30, y1 - 10)),
+            "Place object in center box | Press q to quit",
+            (20, 35),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
-            color,
+            (255, 255, 255),
             2
         )
 
-    # Show instructions
-    cv2.putText(
-        display,
-        "Place object in center box | Press q to quit",
-        (20, 35),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (255, 255, 255),
-        2
-    )
+        msg = String()
+        msg.data = f"status:{status},class:{pred_class},confidence:{confidence:.3f}"
+        self.publisher_.publish(msg)
 
-    cv2.imshow("Live CNN Camera Classifier", display)
+        cv2.imshow("Live CNN Camera Classifier", display)
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            self.get_logger().info("Shutting down vision node...")
+            self.cap.release()
+            cv2.destroyAllWindows()
+            rclpy.shutdown()
 
-cap.release()
-cv2.destroyAllWindows()
+    def destroy_node(self):
+        if hasattr(self, 'cap') and self.cap.isOpened():
+            self.cap.release()
+        cv2.destroyAllWindows()
+        super().destroy_node()
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = VisionNode()
+    rclpy.spin(node)
+    node.destroy_node()
+
+
+if __name__ == '__main__':
+    main()
