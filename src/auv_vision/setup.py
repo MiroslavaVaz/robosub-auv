@@ -23,6 +23,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'camera_cnn_live = auv_vision.camera_cnn_live:main',
             'predict_cnn = auv_vision.predict_cnn:main',
             'train_cnn = auv_vision.train_cnn:main',
             'test_camera = auv_vision.test_camera:main',

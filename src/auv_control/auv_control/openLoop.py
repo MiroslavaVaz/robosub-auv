@@ -7,7 +7,7 @@ Open-loop thruster test for RoboSub Pre-Qual course.
 import time
 import math
 from adafruit_servokit import ServoKit
-from motor_map import *
+from motorMap as maps
 
 # ============================================================
 # MOTOR MAP
