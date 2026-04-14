@@ -1,9 +1,9 @@
 
 MOTOR_MAP = {
     "Front Left": 1,
-    "Front Right": 5,
+    "Front Right": 2,
     "Back Left": 0,
-    "Back Right": 2,
+    "Back Right": 5,
     "Front Vert": 4,
     "Left Vert": 6,
     "Right Vert": 3,
@@ -22,12 +22,12 @@ MOTOR_ABREV = {
 
 MOTOR_HORZ = {
     "Front Left": 1,
-    "Front Right": 1,
-    "Back Left": -1,
-    "Back Right": -1,
+    "Front Right": -1.15,
+    # "Back Left": 1,
+    # "Back Right": -1,
 }
-MOTOR_VERT = [
-    "Front Vert",
-    "Left Vert",
-    "Right Vert",
-]
+MOTOR_VERT = {
+    "Front Vert": 1.05,
+    "Left Vert": 1,
+    "Right Vert": 1,
+}

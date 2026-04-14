@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-thruster_test_adafruit.py
+Allows for manual control of thrusters, based on a command line interface.
+
+Updated spring 2026
 """
 
 import time
@@ -23,11 +25,11 @@ STEP_S = 2.0  # time spinning (seconds)
 
 class ThrusterRig:
     def __init__(self):
-        self.kit = ServoKit(channels=16)
+        self.kit = ServoKit(channels=16, reference_clock_speed=25_900_000)
 
         self._motors: dict[str, ContinuousServo] = {}
 
-        for abrev, name in maps.MOTOR_ABREV:
+        for abrev, name in maps.MOTOR_ABREV.items():
             ch = maps.MOTOR_MAP[name]
             m = self.kit.continuous_servo[ch]  # Use servo instead of continuous_servo
             m.set_pulse_width_range(1000, 2000)
@@ -56,42 +58,47 @@ class ThrusterRig:
             self._motors[name].throttle = NEUTRAL_PWR
 
     def test_motor(self, name: str):
-        print(f"\n[TEST] {name}")
-        print("  neutral")
-        self.set_power(name, NEUTRAL_PWR)
-        time.sleep(1.0)
+        self.set_power(name, .2)
+        input("Press any key to stop")
+        self.set_power(name, 0)
+        # print(f"\n[TEST] {name}")
+        # print("  neutral")
+        # time.sleep(1.0)
 
-        print(f"  forward ({DRIVE_FWD_PWR})")
-        self.set_power(name, DRIVE_FWD_PWR)
-        time.sleep(STEP_S)
+        # print(f"  forward ({DRIVE_FWD_PWR})")
+        # self.set_power(name, DRIVE_FWD_PWR)
+        # time.sleep(STEP_S)
 
-        print("  neutral")
-        self.set_power(name, NEUTRAL_PWR)
-        time.sleep(1.0)
+        # print("  neutral")
+        # self.set_power(name, NEUTRAL_PWR)
+        # time.sleep(1.0)
 
-        print(f"  reverse ({DRIVE_REV_PWR})")
-        self.set_power(name, DRIVE_REV_PWR)
-        time.sleep(STEP_S)
+        # print(f"  reverse ({DRIVE_REV_PWR})")
+        # self.set_power(name, DRIVE_REV_PWR)
+        # time.sleep(STEP_S)
 
-        print("  neutral")
-        self.set_power(name, NEUTRAL_PWR)
-        time.sleep(1.0)
-
-        print("[DONE] motor test complete.")
+        # print("  neutral")
+        # self.set_power(name, NEUTRAL_PWR)
+        # time.sleep(1.0)
+        # print("[DONE] motor test complete.")
 
     # Basic “moves”
     def drive_fwd(self, pow=0.25):
         for name, mult in maps.MOTOR_HORZ.items():
             self._motors[name].throttle = pow * mult
+    
+    def turn_left(self, pow=0.25):
+        for name, mult in maps.MOTOR_HORZ.items():
+            self._motors[name].throttle = pow * mult
 
     def move_vert(self, pow=-0.15):
         # If you have dedicated vertical thrusters, set them here.
-        for name in maps.MOTOR_VERT:
-            self._motors[name].throttle = pow
+        for name, mult in maps.MOTOR_VERT.items():
+            self._motors[name].throttle = pow * mult
 
 
 def main():
-    rig = ThrusterRig(maps.MOTOR_MAP)
+    rig = ThrusterRig()
 
     directions = ["fwd", "back", "up", "down"]
 
@@ -121,7 +128,7 @@ def main():
     exit_sub.set_defaults(func=kill_sub)
 
     list = subs.add_parser("list", help="List motors")
-    list.set_defaults(func=lambda: rig.list_motors())
+    list.set_defaults(func=lambda a: rig.list_motors())
 
     test = subs.add_parser("test", help="Test a motor")
     test.add_argument("motor", choices=rig.get_motor_names())
@@ -133,21 +140,20 @@ def main():
     move.set_defaults(func=move_func)
 
     stop = subs.add_parser("stop", help="Stop all motors")
-    stop.set_defaults(func=rig.stop_all)
+    stop.set_defaults(func=lambda a: rig.stop_all())
 
     parser.print_help()
     while True:
         try:
-            cmd = input("\n> ").strip().lower()
-            print(cmd)
+            cmd = input("\n> ").strip()
             if not cmd:
                 continue
             cmd = cmd.split(" ")
             # cmd.insert(0,"blank")
-            print(cmd)
             args = parser.parse_args(cmd)
+            print("test",flush=True)
             print(args)
-            # args.func(args)
+            args.func(args)
 
         except KeyboardInterrupt:
             print("\n[INFO] Ctrl+C detected. Stopping motors and exiting.")

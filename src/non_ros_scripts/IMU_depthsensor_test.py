@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""
+Connects to IMU, Depth sensor over I2C and outputs their data to the console. To check basic functionality of these sensors.
+
+Updated spring 2026
+"""
+
+
 
 import time
 import board
