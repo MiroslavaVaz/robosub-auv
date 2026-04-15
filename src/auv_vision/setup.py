@@ -29,6 +29,7 @@ setup(
             'test_camera = auv_vision.test_camera:main',
             'image_augmentation = auv_vision.image_augmentation:main',
             'image_videoextraction = auv_vision.image_videoextraction:main',
+            'vision_mission_node = auv_vision.vision_mission_node:main',
         ],
     },
 )
